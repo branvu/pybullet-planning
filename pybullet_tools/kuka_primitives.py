@@ -39,10 +39,12 @@ class BodyPose(object):
     def assign(self):
         set_pose(self.body, self.pose)
         return self.pose
-    def __repr__(self):
+    def __str__(self):
         index = self.index
         #index = id(self) % 1000
         return 'p{}'.format(index)
+    def __repr__(self):
+        return f"bodypose {self.body} {self.pose} {self.index}"
 
 
 class BodyGrasp(object):
@@ -66,11 +68,14 @@ class BodyGrasp(object):
         return Attachment(self.robot, self.link, self.grasp_pose, self.body)
     def assign(self):
         return self.attachment().assign()
-    def __repr__(self):
+    def __str__(self):
         index = self.index
         #index = id(self) % 1000
         return 'g{}'.format(index)
-
+    def __repr__(self):
+        return str(f"bodygrasp {self.body} {self.grasp_pose} {self.approach_pose} {self.robot} {self.link} {self.index}")
+    def without_id(self):
+        return str(f"bodygrasp {self.body} {self.grasp_pose} {self.approach_pose} {self.robot} {self.link}")
 class BodyConf(object):
     num = count()
     def __init__(self, body, configuration=None, joints=None):
@@ -287,13 +292,10 @@ def get_free_motion_gen(robot, fixed=[], teleport=False, self_collisions=True):
             obstacles = fixed + assign_fluent_state(fluents)
             path = plan_joint_motion(robot, conf2.joints, conf2.configuration, obstacles=obstacles, self_collisions=self_collisions)
             if path is None:
-                if DEBUG_FAILURE: wait_if_gui('Free motion failed')
                 return None
         command = Command([BodyPath(robot, path, joints=conf2.joints)])
         return (command,)
     return fn
-
-
 def get_holding_motion_gen(robot, fixed=[], teleport=False, self_collisions=True):
     def fn(conf1, conf2, body, grasp, fluents=[]):
         assert ((conf1.body == conf2.body) and (conf1.joints == conf2.joints))
@@ -305,14 +307,12 @@ def get_holding_motion_gen(robot, fixed=[], teleport=False, self_collisions=True
             path = plan_joint_motion(robot, conf2.joints, conf2.configuration,
                                      obstacles=obstacles, attachments=[grasp.attachment()], self_collisions=self_collisions)
             if path is None:
-                if DEBUG_FAILURE: wait_if_gui('Holding motion failed')
+                if DEBUG_FAILURE: wait_if_gui(f"Holding motion failed {fixed}")
                 return None
         command = Command([BodyPath(robot, path, joints=conf2.joints, attachments=[grasp])])
         return (command,)
     return fn
-
 ##################################################
-
 def get_movable_collision_test():
     def test(command, body, pose):
         if body in command.bodies():
@@ -326,7 +326,7 @@ def get_movable_collision_test():
             for _ in path.iterator():
                 # TODO: could shuffle this
                 if any(pairwise_collision(mov, body) for mov in moving):
-                    if DEBUG_FAILURE: wait_if_gui('Movable collision')
+                    if DEBUG_FAILURE: wait_if_gui("Collision")
                     return True
         return False
     return test

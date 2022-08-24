@@ -84,6 +84,8 @@ class Grasp(object):
         return Attachment(robot, tool_link, self.value, self.body)
     def __repr__(self):
         return 'g{}'.format(id(self) % 1000)
+    def without_id(self):
+        return str(f"grasp {self.body} {self.grasp_type} {self.approach} {self.value} {self.carry}")
 
 class Conf(object):
     def __init__(self, body, joints, values=None, init=False):
@@ -335,7 +337,7 @@ def get_grasp_gen(problem, collisions=False, randomize=True):
         if randomize:
             random.shuffle(filtered_grasps)
         return [(g,) for g in filtered_grasps]
-        #for g in filtered_grasps:
+        # for g in filtered_grasps:
         #    yield (g,)
     return fn
 
@@ -358,7 +360,7 @@ def accelerate_gen_fn(gen_fn, max_attempts=1):
 
 def get_stable_gen(problem, collisions=True, **kwargs):
     obstacles = problem.fixed if collisions else []
-    def gen(body, surface):
+    def gen(body, surface, fluents=[]):
         # TODO: surface poses are being sampled in pr2_belief
         if surface is None:
             surfaces = problem.surfaces
@@ -397,9 +399,9 @@ def get_ir_sampler(problem, custom_limits={}, max_attempts=25, collisions=True, 
     robot = problem.robot
     obstacles = problem.fixed if collisions else []
     gripper = problem.get_gripper()
-
-    def gen_fn(arm, obj, pose, grasp):
+    def gen_fn(arm, obj, pose, grasp, fluents):
         pose.assign()
+        obstacles = fluents
         approach_obstacles = {obst for obst in obstacles if not is_placement(obj, obst)}
         for _ in iterate_approach_path(robot, arm, gripper, pose, grasp, body=obj):
             if any(pairwise_collision(gripper, b) or pairwise_collision(obj, b) for b in approach_obstacles):
@@ -442,7 +444,8 @@ def get_ik_fn(problem, custom_limits={}, collisions=True, teleport=False):
     else:
         print('Using pybullet for inverse kinematics')
 
-    def fn(arm, obj, pose, grasp, base_conf):
+    def fn(arm, obj, pose, grasp, fluents, base_conf):
+        obstacles = fluents
         approach_obstacles = {obst for obst in obstacles if not is_placement(obj, obst)}
         gripper_pose = multiply(pose.value, invert(grasp.value)) # w_f_g = w_f_o * (g_f_o)^-1
         #approach_pose = multiply(grasp.approach, gripper_pose)
@@ -505,7 +508,7 @@ def get_ik_ir_gen(problem, max_attempts=25, learned=True, teleport=False, **kwar
     ir_sampler = get_ir_sampler(problem, learned=learned, max_attempts=1, **kwargs)
     ik_fn = get_ik_fn(problem, teleport=teleport, **kwargs)
     def gen(*inputs):
-        b, a, p, g = inputs
+        b, a, p, g, fluents = inputs
         ir_generator = ir_sampler(*inputs)
         attempts = 0
         while True:
@@ -524,7 +527,6 @@ def get_ik_ir_gen(problem, max_attempts=25, learned=True, teleport=False, **kwar
             ik_outputs = ik_fn(*(inputs + ir_outputs))
             if ik_outputs is None:
                 continue
-            print('IK attempts:', attempts)
             yield ir_outputs + ik_outputs
             return
             #if not p.init:
@@ -549,8 +551,7 @@ def get_motion_gen(problem, custom_limits={}, collisions=True, teleport=False):
                                          restarts=4, iterations=50, smooth=50)
             if raw_path is None:
                 print('Failed motion plan!')
-                #set_renderer(True)
-                #for bq in [bq1, bq2]:
+                # for bq in [bq1, bq2]:
                 #    bq.assign()
                 #    wait_if_gui()
                 return None

@@ -1,0 +1,25 @@
+{
+    "_meta": {
+        "hash": {
+            "sha256": "8e663f3dcee6b981f1ade6b48f0ea103b7de036eaeafa2674f54a7ee3f8e9ec3"
+        },
+        "pipfile-spec": 6,
+        "requires": {
+            "python_version": "3.8"
+        },
+        "sources": [
+            {
+                "name": "pypi",
+                "url": "https://pypi.org/simple",
+                "verify_ssl": true
+            }
+        ]
+    },
+    "default": {
+        "pybullet-planning": {
+            "editable": true,
+            "path": "."
+        }
+    },
+    "develop": {}
+}

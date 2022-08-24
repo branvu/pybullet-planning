@@ -982,7 +982,8 @@ class LockRenderer(Saver):
     # disabling rendering temporary makes adding objects faster
     def __init__(self, lock=True):
         self.client = CLIENT
-        self.state = CLIENTS[self.client]
+        if self.client in CLIENTS:
+            self.state = CLIENTS[self.client]
         # skip if the visualizer isn't active
         if has_gui(self.client) and lock:
             set_renderer(enable=False)
@@ -3471,7 +3472,6 @@ def get_collision_fn(body, joints, obstacles, attachments, self_collisions, disa
         for body1, body2 in product(moving_bodies, obstacles):
             if (not use_aabb or aabb_overlap(get_moving_aabb(body1), get_obstacle_aabb(body2))) \
                     and pairwise_collision(body1, body2, **kwargs):
-                #print(get_body_name(body1), get_body_name(body2))
                 if verbose: print(body1, body2)
                 return True
         return False
