@@ -361,12 +361,19 @@ def accelerate_gen_fn(gen_fn, max_attempts=1):
 def get_stable_gen(problem, collisions=True, **kwargs):
     obstacles = problem.fixed if collisions else []
     def gen(body, surface, fluents=[]):
+        obstacles = fluents
+        max_attempts = 1000
         # TODO: surface poses are being sampled in pr2_belief
         if surface is None:
             surfaces = problem.surfaces
         else:
             surfaces = [surface]
+        attempts = 0
         while True:
+            if max_attempts <= attempts:
+                attempts = 0
+                yield None
+            attempts += 1
             surface = random.choice(surfaces) # TODO: weight by area
             body_pose = sample_placement(body, surface, **kwargs)
             if body_pose is None:
