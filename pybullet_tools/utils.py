@@ -3442,25 +3442,24 @@ def get_collision_fn(body, joints, obstacles, attachments, self_collisions, disa
     lower_limits, upper_limits = get_custom_limits(body, joints, custom_limits)
     get_obstacle_aabb = cached_fn(get_buffered_aabb, cache=cache, max_distance=max_distance/2., **kwargs)
     # TODO: sort bodies by bounding box size
-
+    
     def collision_fn(q, verbose=False):
-        if not all_between(lower_limits, q, upper_limits):
-            #print('Joint limits violated')
-            if verbose: print(lower_limits, q, upper_limits)
-            return True
+        # if not all_between(lower_limits, q, upper_limits):
+        #     print('Joint limits violated')
+        #     if verbose: print(lower_limits, q, upper_limits)
+        #     return True
         set_joint_positions(body, joints, q)
         for attachment in attachments:
             attachment.assign()
         #wait_for_duration(1e-2)
         get_moving_aabb = cached_fn(get_buffered_aabb, cache=True, max_distance=max_distance/2., **kwargs)
-
         for link1, link2 in check_link_pairs:
             # Self-collisions should not have the max_distance parameter
             # TODO: self-collisions between body and attached_bodies (except for the link adjacent to the robot)
             if (not use_aabb or aabb_overlap(get_moving_aabb(body), get_moving_aabb(body))) and \
                     pairwise_link_collision(body, link1, body, link2): #, **kwargs):
-                #print(get_body_name(body), get_link_name(body, link1), get_link_name(body, link2))
-                if verbose: print(body, link1, body, link2)
+                # print(get_body_name(body), get_link_name(body, link1), get_link_name(body, link2))
+                # print(body, link1, body, link2)
                 return True
         #step_simulation()
         # for body1 in moving_bodies:
@@ -3472,7 +3471,7 @@ def get_collision_fn(body, joints, obstacles, attachments, self_collisions, disa
         for body1, body2 in product(moving_bodies, obstacles):
             if (not use_aabb or aabb_overlap(get_moving_aabb(body1), get_obstacle_aabb(body2))) \
                     and pairwise_collision(body1, body2, **kwargs):
-                if verbose: print(body1, body2)
+                #print(body1, body2) # TODO: HERE
                 return True
         return False
     return collision_fn
@@ -3534,9 +3533,7 @@ def plan_joint_motion(body, joints, end_conf, obstacles=[], attachments=[],
     collision_fn = get_collision_fn(body, joints, obstacles, attachments, self_collisions, disabled_collisions,
                                     custom_limits=custom_limits, max_distance=max_distance,
                                     use_aabb=use_aabb, cache=cache)
-
     start_conf = get_joint_positions(body, joints)
-
     if not check_initial_end(start_conf, end_conf, collision_fn):
         return None
     return birrt(start_conf, end_conf, distance_fn, sample_fn, extend_fn, collision_fn, **kwargs)
@@ -4172,13 +4169,16 @@ def inverse_kinematics_helper(robot, link, target_pose, null_space=None):
         return None
     return kinematic_conf
 
-def is_pose_close(pose, target_pose, pos_tolerance=1e-3, ori_tolerance=1e-3*np.pi):
+def is_pose_close(pose, target_pose, pos_tolerance=1e-2, ori_tolerance=1e-1*np.pi):
     (point, quat) = pose
     (target_point, target_quat) = target_pose
     if (target_point is not None) and not np.allclose(point, target_point, atol=pos_tolerance, rtol=0):
+        #wait_if_gui("pose")
+        #print("pose", pose, target_point)
         return False
     if (target_quat is not None) and not np.allclose(quat, target_quat, atol=ori_tolerance, rtol=0):
         # TODO: account for quaternion redundancy
+        #wait_if_gui("quats")
         return False
     return True
 
@@ -4196,11 +4196,16 @@ def inverse_kinematics(robot, link, target_pose, max_iterations=200, max_time=IN
         set_joint_positions(robot, movable_joints, kinematic_conf)
         if is_pose_close(get_link_pose(robot, link), target_pose, **kwargs):
             break
+        else:
+            pass
+            #wait_if_gui("says not close")
     else:
+        # wait_if_gui("couldn't find")
         return None
     lower_limits, upper_limits = get_custom_limits(robot, movable_joints, custom_limits)
-    if not all_between(lower_limits, kinematic_conf, upper_limits):
-        return None
+    #if not all_between(lower_limits, kinematic_conf, upper_limits):
+    #    wait_if_gui("limits")
+    #    return None
     return kinematic_conf
 
 #####################################
