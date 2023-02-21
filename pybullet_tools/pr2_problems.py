@@ -6,8 +6,8 @@ from .pr2_utils import set_arm_conf, REST_LEFT_ARM, open_arm, \
 from .utils import create_box, set_base_values, set_point, set_pose, get_pose, \
     get_bodies, z_rotation, load_model, load_pybullet, HideOutput, create_body, \
     get_box_geometry, get_cylinder_geometry, create_shape_array, unit_pose, Pose, \
-    Point, LockRenderer, FLOOR_URDF, TABLE_URDF, add_data_path, TAN, set_color, BASE_LINK, remove_body
-
+    Point, Euler, sample_placement, pairwise_collision, LockRenderer, FLOOR_URDF, TABLE_URDF, add_data_path, TAN, set_color, BASE_LINK, remove_body
+from scipy.spatial.transform import Rotation as R
 LIGHT_GREY = (0.7, 0.7, 0.7, 1.)
 
 class Problem(object):
@@ -63,31 +63,47 @@ def create_pr2(use_drake=True, fixed_base=True, torso=0.2):
         set_group_conf(pr2, 'torso', [torso])
     return pr2
 
+def sample_placements(body_surfaces, obstacles=None, min_distances={}):
+    if obstacles is None:
+        obstacles = [body for body in get_bodies() if body not in body_surfaces]
+    obstacles = list(obstacles)
+    # TODO: max attempts here
+    for body, surface in body_surfaces.items():
+        min_distance = min_distances.get(body, 0.01)
+        while True:
+            pose = sample_placement(body, surface)
+            if pose is None:
+                return False
+            if not any(pairwise_collision(body, obst, max_distance=min_distance)
+                       for obst in obstacles if obst not in [body, surface]):
+                obstacles.append(body)
+                break
+    return True
 def create_floor(**kwargs):
     add_data_path()
     return load_pybullet(FLOOR_URDF, **kwargs)
 
-def create_table(width=0.6, length=1.2, height=0.73, thickness=0.03, radius=0.015,
+def create_table(dx=0, dy=0, theta=0, width=0.6, length=1.2, height=0.73, thickness=0.03, radius=0.015,
                  top_color=LIGHT_GREY, leg_color=TAN, cylinder=True, **kwargs):
     # TODO: table URDF
     surface = get_box_geometry(width, length, thickness)
-    surface_pose = Pose(Point(z=height - thickness/2.))
-
+    surface_pose = Pose(Point(x=dx, y=dy, z=height - thickness/2.), euler=Euler(yaw=theta))
     leg_height = height-thickness
     if cylinder:
         leg_geometry = get_cylinder_geometry(radius, leg_height)
     else:
         leg_geometry = get_box_geometry(width=2*radius, length=2*radius, height=leg_height)
     legs = [leg_geometry for _ in range(4)]
+    r1 = R.from_euler('z', theta, degrees=False)
     leg_center = np.array([width, length])/2. - radius*np.ones(2)
-    leg_xys = [np.multiply(leg_center, np.array(signs))
-               for signs in product([-1, +1], repeat=len(leg_center))]
-    leg_poses = [Pose(point=[x, y, leg_height/2.]) for x, y in leg_xys]
-
+    new_leg = r1.apply(np.array([leg_center[0], leg_center[1], 1]))
+    leg_center[1] = new_leg[1]
+    leg_center[0] = new_leg[0]
+    leg_xys = [np.multiply(leg_center, np.array(signs)) for signs in product([-1, +1], repeat=len(leg_center))]
+    leg_poses = [Pose(point=[x + dx, y + dy, leg_height/2.]) for x, y in leg_xys]
     geoms = [surface] + legs
     poses = [surface_pose] + leg_poses
     colors = [top_color] + len(legs)*[leg_color]
-
     collision_id, visual_id = create_shape_array(geoms, poses, colors)
     body = create_body(collision_id, visual_id, **kwargs)
 

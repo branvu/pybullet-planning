@@ -91,7 +91,7 @@ def get_tool_from_ik(robot, arm):
     world_from_ik = get_link_pose(robot, link_from_name(robot, IK_FRAME[arm]))
     return multiply(invert(world_from_tool), world_from_ik)
 
-def sample_tool_ik(robot, arm, tool_pose, nearby_conf=USE_ALL, max_attempts=25, **kwargs):
+def sample_tool_ik(robot, arm, tool_pose, nearby_conf=USE_ALL, max_attempts=50, **kwargs):
     ik_pose = multiply(tool_pose, get_tool_from_ik(robot, arm))
     generator = get_ik_generator(robot, arm, ik_pose, **kwargs)
     arm_joints = get_torso_arm_joints(robot, arm)
