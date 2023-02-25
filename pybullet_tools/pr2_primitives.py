@@ -96,7 +96,7 @@ from .utils import (
 BASE_EXTENT = 3.5  # 2.5
 BASE_LIMITS = (-BASE_EXTENT * np.ones(2), BASE_EXTENT * np.ones(2))
 GRASP_LENGTH = 0.03
-APPROACH_DISTANCE = 0.1 + GRASP_LENGTH
+APPROACH_DISTANCE = 0.1 + GRASP_LENGTH  # 0.1
 SELF_COLLISIONS = False
 
 ##################################################
@@ -462,19 +462,19 @@ class Cook(Command):
 ##################################################
 
 
-def get_grasp_gen(problem, collisions=False, randomize=True):
+def get_grasp_gen(problem, collisions=False, randomize=True, front_only=False):
     for grasp_type in problem.grasp_types:
         if grasp_type not in GET_GRASPS:
             raise ValueError("Unexpected grasp type:", grasp_type)
 
-    def fn(body):
+    def fn(body, fixed_grasp=None):
         # TODO: max_grasps
         # TODO: return grasps one by one
         grasps = []
         arm = "left"
         # carry_conf = get_carry_conf(arm, 'top')
         if "top" in problem.grasp_types:
-            approach_vector = APPROACH_DISTANCE * get_unit_vector([1, 0, 0])
+            approach_vector = APPROACH_DISTANCE * get_unit_vector([0.1, 0, 0])
             grasps.extend(
                 Grasp(
                     "top",
@@ -486,7 +486,8 @@ def get_grasp_gen(problem, collisions=False, randomize=True):
                 for g in get_top_grasps(body, grasp_length=GRASP_LENGTH)
             )
         if "side" in problem.grasp_types:
-            approach_vector = APPROACH_DISTANCE * get_unit_vector([2, 0, -1])
+            approach_vector = APPROACH_DISTANCE * get_unit_vector([2, 0, -0.5])
+            # -1
             grasps.extend(
                 Grasp(
                     "side",
@@ -495,7 +496,8 @@ def get_grasp_gen(problem, collisions=False, randomize=True):
                     multiply((approach_vector, unit_quat()), g),
                     SIDE_HOLDING_LEFT_ARM,
                 )
-                for g in get_side_grasps(body, grasp_length=GRASP_LENGTH)
+                for g in get_side_grasps(body, grasp_length=GRASP_LENGTH,
+                    front_only=front_only, fixed_grasp=fixed_grasp)
             )
         filtered_grasps = []
         for grasp in grasps:
@@ -509,6 +511,9 @@ def get_grasp_gen(problem, collisions=False, randomize=True):
                 filtered_grasps.append(grasp)
         if randomize:
             random.shuffle(filtered_grasps)
+        # set_renderer(enable=True)
+        # wait_if_gui("grasp")
+        # set_renderer(enable=False)
         return [(g,) for g in filtered_grasps]
         # for g in filtered_grasps:
         #    yield (g,)
@@ -728,7 +733,7 @@ def get_ik_fn(problem, custom_limits={}, collisions=True, teleport=False):
         if (grasp_conf is None) or any(
             pairwise_collision(robot, b) for b in obstacles
         ):  # [obj]
-            print("Grasp IK failure", grasp_conf)
+            # print("Grasp IK failure", grasp_conf)
             # if grasp_conf is not None:
             #     for b in obstacles:
             #         if pairwise_collision(robot, b):
@@ -744,7 +749,10 @@ def get_ik_fn(problem, custom_limits={}, collisions=True, teleport=False):
         if (approach_conf is None) or any(
             pairwise_collision(robot, b) for b in obstacles + [obj]
         ):
-            print("Approach IK failure", approach_conf)
+            # print("Approach IK failure", approach_conf)
+            # set_renderer(enable=True)
+            # wait_if_gui("approach")
+            # set_renderer(enable=False)
             # if approach_conf is not None:
             #     for b in obstacles:
             #         if pairwise_collision(robot, b):

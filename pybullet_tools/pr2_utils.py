@@ -309,27 +309,48 @@ def get_top_grasps(body, under=False, tool_pose=TOOL_POSE, body_pose=unit_pose()
     return grasps
 
 def get_side_grasps(body, under=False, tool_pose=TOOL_POSE, body_pose=unit_pose(),
-                    max_width=MAX_GRASP_WIDTH, grasp_length=GRASP_LENGTH, top_offset=SIDE_HEIGHT_OFFSET):
+                    max_width=MAX_GRASP_WIDTH, grasp_length=GRASP_LENGTH,
+                    top_offset=SIDE_HEIGHT_OFFSET, front_only=False,
+                    fixed_grasp=None):
     # TODO: compute bounding box width wrt tool frame
     center, (w, l, h) = approximate_as_prism(body, body_pose=body_pose)
     translate_center = Pose(point=point_from_pose(body_pose)-center)
     grasps = []
     #x_offset = 0
     x_offset = h/2 - top_offset
+    if fixed_grasp is not None:
+        fixed_grasp = int(fixed_grasp)
     for j in range(1 + under):
         swap_xz = Pose(euler=[0, -math.pi / 2 + j * math.pi, 0])
+        front_grasps = []
         if w <= max_width:
             translate_z = Pose(point=[x_offset, 0, l / 2 - grasp_length])
             for i in range(2):
                 rotate_z = Pose(euler=[math.pi / 2 + i * math.pi, 0, 0])
-                grasps += [multiply(tool_pose, translate_z, rotate_z, swap_xz,
+                grasp = [multiply(tool_pose, translate_z, rotate_z, swap_xz,
                                     translate_center, body_pose)]  # , np.array([w])
+                if front_only and i == 0:
+                    front_grasps += grasp
+                if fixed_grasp is not None and fixed_grasp == 4 and i == 0:
+                    return grasp
+                if fixed_grasp is not None and fixed_grasp == 3 and i == 1:
+                    return grasp
+                grasps += grasp
         if l <= max_width:
             translate_z = Pose(point=[x_offset, 0, w / 2 - grasp_length])
             for i in range(2):
                 rotate_z = Pose(euler=[i * math.pi, 0, 0])
-                grasps += [multiply(tool_pose, translate_z, rotate_z, swap_xz,
+                grasp = [multiply(tool_pose, translate_z, rotate_z, swap_xz,
                                     translate_center, body_pose)]  # , np.array([l])
+                if front_only and i == 0:
+                    front_grasps += grasp
+                if fixed_grasp is not None and fixed_grasp == 2 and i == 0:
+                    return grasp
+                if fixed_grasp is not None and fixed_grasp == 1 and i == 1:
+                    return grasp
+                grasps += grasp
+        if front_only:
+            return front_grasps
     return grasps
 
 #####################################
