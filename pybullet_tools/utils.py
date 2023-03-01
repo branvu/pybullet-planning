@@ -3536,7 +3536,7 @@ def plan_waypoints_joint_motion(body, joints, waypoints, start_conf=None, obstac
     waypoints = [start_conf] + list(waypoints)
     for i, waypoint in enumerate(waypoints):
         if collision_fn(waypoint):
-            #print('Warning: waypoint configuration {}/{} is in collision'.format(i, len(waypoints)))
+            print('Warning: waypoint configuration {}/{} is in collision'.format(i, len(waypoints)))
             return None
     return interpolate_joint_waypoints(body, joints, waypoints, resolutions=resolutions, collision_fn=collision_fn)
 
