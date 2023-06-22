@@ -4451,8 +4451,10 @@ def read_counter(debug):
 def read_button(debug):
     return read_counter(debug) % 2 == 1
 
-def add_text(text, position=unit_point(), color=BLACK, lifetime=None, parent=NULL_ID, parent_link=BASE_LINK):
-    return p.addUserDebugText(str(text), textPosition=position, textColorRGB=color[:3], # textSize=1,
+def add_text(text, position=unit_point(), color=BLACK, lifetime=None,
+        parent=NULL_ID, parent_link=BASE_LINK,text_size=2):
+    return p.addUserDebugText(str(text), textPosition=position,
+            textColorRGB=color[:3], textSize=text_size,
                               lifeTime=get_lifetime(lifetime), parentObjectUniqueId=parent, parentLinkIndex=parent_link,
                               physicsClientId=CLIENT)
 

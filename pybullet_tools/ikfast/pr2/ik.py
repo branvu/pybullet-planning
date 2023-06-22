@@ -5,7 +5,7 @@ from ..utils import get_ik_limits, compute_forward_kinematics, compute_inverse_k
 from ...pr2_utils import PR2_TOOL_FRAMES, get_torso_arm_joints, get_gripper_link, get_arm_joints, side_from_arm
 from ...utils import multiply, get_link_pose, link_from_name, get_joint_positions, \
     joint_from_name, invert, get_custom_limits, all_between, sub_inverse_kinematics, set_joint_positions, \
-    get_joint_positions, pairwise_collision
+    get_joint_positions, pairwise_collision, wait_if_gui, set_renderer, add_body_name 
 from ...ikfast.utils import IKFastInfo
 #from ...ikfast.ikfast import closest_inverse_kinematics # TODO: use these functions instead
 
@@ -80,7 +80,6 @@ def get_ik_generator(robot, arm, ik_pose, torso_limits=USE_ALL, upper_limits=USE
         confs = compute_inverse_kinematics(arm_ik[arm], base_from_ik, sampled_values)
         solutions = [q for q in confs if all_between(min_limits, q, max_limits)]
         # TODO: return just the closest solution
-        #print(len(confs), len(solutions))
         yield solutions
         if all(lower == upper for lower, upper in sampled_limits):
             break
@@ -120,5 +119,8 @@ def pr2_inverse_kinematics(robot, arm, gripper_pose, obstacles=[], custom_limits
         if arm_conf is None:
             return None
     if any(pairwise_collision(robot, b) for b in obstacles):
+        # set_renderer(True)
+        # print("hit table")
+        # wait_if_gui()
         return None
     return get_joint_positions(robot, arm_joints)

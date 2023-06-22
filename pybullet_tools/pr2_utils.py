@@ -150,7 +150,8 @@ def arm_conf(arm, left_config):
     elif side == RIGHT_ARM:
         return rightarm_from_leftarm(left_config)
     raise ValueError(side)
-
+def get_wide_conf(arm):
+    return arm_conf(arm, WIDE_LEFT_ARM)
 def get_carry_conf(arm, grasp_type):
     return arm_conf(arm, PR2_LEFT_CARRY_CONFS[grasp_type])
 
@@ -331,7 +332,7 @@ def get_side_grasps(body, under=False, tool_pose=TOOL_POSE, body_pose=unit_pose(
                                     translate_center, body_pose)]  # , np.array([w])
                 if front_only and i == 0:
                     front_grasps += grasp
-                if fixed_grasp is not None and fixed_grasp == 4 and i == 0:
+                if fixed_grasp is not None and fixed_grasp == 1 and i == 0:
                     return grasp
                 if fixed_grasp is not None and fixed_grasp == 3 and i == 1:
                     return grasp
@@ -344,9 +345,9 @@ def get_side_grasps(body, under=False, tool_pose=TOOL_POSE, body_pose=unit_pose(
                                     translate_center, body_pose)]  # , np.array([l])
                 if front_only and i == 0:
                     front_grasps += grasp
-                if fixed_grasp is not None and fixed_grasp == 2 and i == 0:
+                if fixed_grasp is not None and fixed_grasp == 4 and i == 0:
                     return grasp
-                if fixed_grasp is not None and fixed_grasp == 1 and i == 1:
+                if fixed_grasp is not None and fixed_grasp == 2 and i == 1:
                     return grasp
                 grasps += grasp
         if front_only:

@@ -33,11 +33,14 @@ from .pr2_utils import (
     get_group_conf,
     compute_grasp_width,
     PR2_GRIPPER_ROOTS,
+    get_wide_conf,
+    close_arm
 )
 from .utils import (
     invert,
     multiply,
     get_name,
+    get_sample_fn,
     set_pose,
     get_link_pose,
     is_placement,
@@ -615,6 +618,7 @@ def get_ir_sampler(
             pose.value, invert(grasp.value)
         )  # w_f_g = w_f_o * (g_f_o)^-1
         default_conf = arm_conf(arm, grasp.carry)
+        wide_conf = get_wide_conf(arm) #arm_conf(arm, grasp.carry)
         arm_joints = get_arm_joints(robot, arm)
         base_joints = get_group_joints(robot, "base")
         # ORIGINAL
@@ -681,12 +685,22 @@ def get_ir_sampler(
                 bq = Conf(robot, base_joints, base_conf)
                 pose.assign()
                 bq.assign()
-                set_joint_positions(robot, arm_joints, default_conf)
-                # wait_if_gui()
+                set_joint_positions(robot, arm_joints, wide_conf)
+                
                 if any(pairwise_collision(robot, b) for b in obstacles + [obj]):
-                    # print("collision with table")
+                    # print("collision with table wide")
+                    # set_renderer(True)
+                    # wait_if_gui()
+                    # set_renderer(False)
+                    continue
+                set_joint_positions(robot, arm_joints, default_conf)
+                if any(pairwise_collision(robot, b) for b in obstacles + [obj]):
+                    # print("collision with table default")
                     continue
                 # draw_circle((base_conf[0], base_conf[1], 0), 0.1, color=(1, 0, 0))
+                # set_renderer(True)
+                # wait_if_gui()
+                # set_renderer(False)
                 yield (bq,)
                 break
             # for base_conf in qss[idx_valid2]:
@@ -721,7 +735,7 @@ def get_ik_fn(problem, custom_limits={}, collisions=True, teleport=False,
 
     def fn(arm, obj, pose, grasp, fluents, obs, base_conf):
         # obstacles.extend(fluents)
-        approach_obstacles = {obst for obst in obstacles if not is_placement(obj, obst)}
+        approach_obstacles = {obst for obst in obstacles + obs if not is_placement(obj, obst)}
         gripper_pose = multiply(
             pose.value, invert(grasp.value)
         )  # w_f_g = w_f_o * (g_f_o)^-1
@@ -746,22 +760,25 @@ def get_ik_fn(problem, custom_limits={}, collisions=True, teleport=False,
         )  # , upper_limits=USE_CURRENT)
         # nearby_conf=USE_CURRENT) # upper_limits=USE_CURRENT,
         if (grasp_conf is None) or any(
-            pairwise_collision(robot, b) for b in obstacles #+ obs
+            pairwise_collision(robot, b) for b in obstacles + obs
         ):  # [obj]
-            print("Grasp IK failure", grasp_conf)
-            # set_renderer(True)
-            # wait_if_gui()
-            # set_renderer(False)
+            # print("Grasp IK failure", grasp_conf)
             # if grasp_conf is not None:
             #     for b in obstacles:
             #         if pairwise_collision(robot, b):
             #             print(b)
             #     #    print(grasp_conf)
             # wait_if_gui()
+            # set_renderer(True)
+            # wait_for_duration(0.1)
+            # set_renderer(False)
             if not constraint:
                 return None
             for b in obs:
                 if pairwise_collision(robot, b):
+                    # set_renderer(True)
+                    # wait_if_gui(b)
+                    # set_renderer(False)
                     # print(obj)
                     # wait_if_gui(b)
                     return False, (obj, b)
@@ -778,7 +795,7 @@ def get_ik_fn(problem, custom_limits={}, collisions=True, teleport=False,
         if (approach_conf is None) or any(
             pairwise_collision(robot, b) for b in obstacles + [obj] #+ obs
         ):
-            print("Approach IK failure", approach_conf)
+            # print("Approach IK failure", approach_conf)
             # set_renderer(enable=True)
             # wait_if_gui("approach")
             # set_renderer(enable=False)
@@ -791,10 +808,10 @@ def get_ik_fn(problem, custom_limits={}, collisions=True, teleport=False,
                 return None
             if grasp_conf is None:
                 return False, None
-            # else:
-            #     for b in obs:
-            #         if pairwise_collision(robot, b):
-            #             return False, (obj, b)
+            else:
+                for b in obs:
+                    if pairwise_collision(robot, b):
+                        return False, (obj, b)
             return False, None
         approach_conf = get_joint_positions(robot, arm_joints)
         attachment = grasp.get_attachment(problem.robot, arm)
@@ -814,7 +831,7 @@ def get_ik_fn(problem, custom_limits={}, collisions=True, teleport=False,
                 resolutions=resolutions / 2.0,
             )
             if grasp_path is None:
-                print("Grasp path failure")
+                # print("Grasp path failure")
                 # set_renderer(True)
                 # wait_if_gui()
                 # set_renderer(False)
@@ -828,7 +845,7 @@ def get_ik_fn(problem, custom_limits={}, collisions=True, teleport=False,
                 arm_joints,
                 approach_conf,
                 attachments=attachments.values(),
-                obstacles=obstacles,
+                obstacles=obstacles + obs,
                 self_collisions=SELF_COLLISIONS,
                 custom_limits=custom_limits,
                 resolutions=resolutions,
@@ -837,7 +854,7 @@ def get_ik_fn(problem, custom_limits={}, collisions=True, teleport=False,
                 smooth=25,
             )
             if approach_path is None:
-                print("Approach path failure")
+                # print("Approach path failure")
                 if not constraint:
                     return None
                 else:
@@ -868,6 +885,7 @@ def get_ik_ir_gen(problem, max_attempts=25, learned=True, teleport=False, **kwar
         attempts = 0
         while True:
             if max_attempts <= attempts:
+                print("attempts ran out", p.init)
                 if not p.init:
                     return
                 attempts = 0
@@ -881,7 +899,7 @@ def get_ik_ir_gen(problem, max_attempts=25, learned=True, teleport=False, **kwar
             if ir_outputs is None:
                 # print("skipped ik")
                 continue
-            for i in range(3):
+            for i in range(1):
                 ik_outputs = ik_fn(*(inputs + ir_outputs))
                 # TODO: Constraint base here
                 status, maybe = ik_outputs
@@ -890,12 +908,16 @@ def get_ik_ir_gen(problem, max_attempts=25, learned=True, teleport=False, **kwar
                 # set_renderer(True)
                 # wait_if_gui()
                 # set_renderer(False)
-                if not status and maybe is None:
-                    break
-                # print("Attempts:", attempts)
+                # If we either get a collision or no ik, just keep trying 
+                if not status:
+                    continue
+            if not status and maybe is not None:
                 yield ir_outputs + ik_outputs
-                return
-            continue
+            if not status:
+                continue
+            yield ir_outputs + ik_outputs
+            return
+            # continue
             # if not p.init:
             #    return
 
