@@ -216,6 +216,13 @@
       </geometry>
       <material name="Orange"/>
     </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="../meshes/collision/link_6.obj"/>
+      </geometry>
+      <material name="Orange"/>
+    </collision>
   </link>
   <!-- joint between link_6 and link_7 -->
   <joint name="iiwa_joint_7" type="revolute">

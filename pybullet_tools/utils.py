@@ -2538,7 +2538,7 @@ def visual_shape_from_data(data, client=None):
                                radius=get_data_radius(data),
                                halfExtents=np.array(get_data_extents(data))/2,
                                length=get_data_height(data), # TODO: pybullet bug
-                               fileName=data.meshAssetFileName,
+                               fileName=str(data.meshAssetFileName),
                                meshScale=get_data_scale(data),
                                planeNormal=get_data_normal(data),
                                rgbaColor=data.rgbaColor,
@@ -3465,7 +3465,7 @@ def get_self_link_pairs(body, joints, disabled_collisions=set(), only_moving=Tru
     return check_link_pairs
 
 def get_collision_fn(body, joints, obstacles, attachments, self_collisions, disabled_collisions,
-                     custom_limits={}, use_aabb=False, cache=False, max_distance=MAX_DISTANCE, **kwargs):
+                     custom_limits={}, use_aabb=False, cache=False, max_distance=MAX_DISTANCE, return_collide=False, **kwargs):
     # TODO: convert most of these to keyword arguments
     check_link_pairs = get_self_link_pairs(body, joints, disabled_collisions) if self_collisions else []
     moving_links = frozenset(get_moving_links(body, joints))
@@ -3483,6 +3483,7 @@ def get_collision_fn(body, joints, obstacles, attachments, self_collisions, disa
         #     if verbose: print(lower_limits, q, upper_limits)
         #     return True
         set_joint_positions(body, joints, q)
+        # input()
         for attachment in attachments:
             attachment.assign()
         #wait_for_duration(1e-2)
@@ -3503,10 +3504,22 @@ def get_collision_fn(body, joints, obstacles, attachments, self_collisions, disa
         #             if verbose: print(body1, body2)
         #             return True
         for body1, body2 in product(moving_bodies, obstacles):
-            if (not use_aabb or aabb_overlap(get_moving_aabb(body1), get_obstacle_aabb(body2))) \
-                    and pairwise_collision(body1, body2, **kwargs):
-                #print(body1, body2) # TODO: HERE
+            if (
+                not use_aabb
+                or aabb_overlap(get_buffered_aabb(body1), get_buffered_aabb(body2))
+            ) and pairwise_collision(body1, body2, **kwargs):
+                # print(get_body_name(body1), get_body_name(body2))
+                if False:
+                    print("col", body1, body2)
+
+                if return_collide:
+                    # print("returned", body2)
+                    return body2
                 return True
+            # if (not use_aabb or aabb_overlap(get_moving_aabb(body1), get_buffered_aabb(body2))) \
+            #         and pairwise_collision(body1, body2, **kwargs):
+            #     #print(body1, body2) # TODO: HERE
+            #     return True
         return False
     return collision_fn
 
@@ -3543,20 +3556,29 @@ def plan_waypoints_joint_motion(body, joints, waypoints, start_conf=None, obstac
 def plan_direct_joint_motion(body, joints, end_conf, **kwargs):
     return plan_waypoints_joint_motion(body, joints, [end_conf], **kwargs)
 
-def check_initial_end(start_conf, end_conf, collision_fn, verbose=True):
+def check_initial_end(start_conf, end_conf, collision_fn, return_collide=False, verbose=True):
     # TODO: collision_fn might not accept kwargs
-    if collision_fn(start_conf, verbose=verbose):
-        print('Warning: initial configuration is in collision')
-        return False
-    if collision_fn(end_conf, verbose=verbose):
-        print('Warning: end configuration is in collision')
-        return False
-    return True
+    if not return_collide:
+        if collision_fn(start_conf, verbose=verbose):
+            print('Warning: initial configuration is in collision')
+            return False
+        if collision_fn(end_conf, verbose=verbose):
+            print('Warning: end configuration is in collision')
+            return False
+        return True
+    else:
+        a = collision_fn(start_conf, verbose=verbose)
+        b = collision_fn(end_conf, verbose=verbose)
+        if not isinstance(a, bool):
+            return False, a
+        if not isinstance(b, bool):
+            return False, b 
+        return True
 
 def plan_joint_motion(body, joints, end_conf, obstacles=[], attachments=[],
                       self_collisions=True, disabled_collisions=set(),
                       weights=None, resolutions=None, max_distance=MAX_DISTANCE,
-                      use_aabb=False, cache=True, custom_limits={}, **kwargs):
+                      use_aabb=False, cache=True, custom_limits={}, return_collide=False, **kwargs):
 
     assert len(joints) == len(end_conf)
     if (weights is None) and (resolutions is not None):
@@ -3566,11 +3588,16 @@ def plan_joint_motion(body, joints, end_conf, obstacles=[], attachments=[],
     extend_fn = get_extend_fn(body, joints, resolutions=resolutions)
     collision_fn = get_collision_fn(body, joints, obstacles, attachments, self_collisions, disabled_collisions,
                                     custom_limits=custom_limits, max_distance=max_distance,
-                                    use_aabb=use_aabb, cache=cache)
+                                    use_aabb=use_aabb, cache=cache, return_collide=return_collide)
     start_conf = get_joint_positions(body, joints)
-    if not check_initial_end(start_conf, end_conf, collision_fn):
+    if not return_collide and not check_initial_end(start_conf, end_conf, collision_fn):  # TODO: Turn this back on
         return None
-    return birrt(start_conf, end_conf, distance_fn, sample_fn, extend_fn, collision_fn, **kwargs)
+    # if return_collide:
+    #     check = check_initial_end(start_conf, end_conf, collision_fn, return_collide=return_collide)
+    #     if isinstance(check, tuple):
+    #         print("checking start and end failed")
+    #         return check
+    return birrt(start_conf, end_conf, distance_fn, sample_fn, extend_fn, collision_fn, return_collide=return_collide, **kwargs)
     #return plan_lazy_prm(start_conf, end_conf, sample_fn, extend_fn, collision_fn)
 
 plan_holonomic_motion = plan_joint_motion
