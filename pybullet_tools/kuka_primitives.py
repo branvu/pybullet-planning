@@ -38,6 +38,7 @@ from .utils import (
     dump_world,
     wait_if_gui,
     flatten,
+    get_link_pose
 )
 
 # TODO: deprecate
@@ -53,9 +54,10 @@ GRASP_INFO = {
     "side": GraspInfo(
         lambda body: get_side_grasps(
             body, under=True, tool_pose=Pose(), max_width=INF,
-            grasp_length=-0.005
+            grasp_length=-0.005,
+            top_offset=0.1
         ),
-        approach_pose=Pose(0.2 * Point(y=-1)),
+        approach_pose=Pose(0.3 * Point(y=-1)), #0.2
     ),
 }
 
@@ -415,37 +417,90 @@ def assign_fluent_state(fluents):
     return obstacles
 
 
-def get_free_motion_gen(robot, fixed=[], teleport=False, self_collisions=True):
+def get_free_motion_gen(robot, fixed=[], teleport=False, self_collisions=True, return_collide=False, only_col_collisions=False, max_time=INF):
     def fn(conf1, conf2, fluents=[]):
         assert (conf1.body == conf2.body) and (conf1.joints == conf2.joints)
         if teleport:
             path = [conf1.configuration, conf2.configuration]
         else:
+            if only_col_collisions:
+                obstacles = fixed[:]
+                # Find the fluents that aren't in the same column if any
+                for fluent in fluents:
+                    name, args = fluent[0], fluent[1:]
+                    if name == "atpose":
+                        o, p = args
+                        
+                        conf2.assign()
+                        our_target_col_x = get_link_pose(0, get_tool_link(robot))[0][0]
+                        col_x = p.pose[0][0]
+                        # print("obstacle", col_x, p.pose[0][1])
+                        # print("target", our_target_col_x, get_link_pose(0, get_tool_link(robot))[0][1])
+                        # Ignore hitting things on the side columns other than the one we are extracting
+                        if abs(col_x - our_target_col_x) <= 0.001:
+                            if o not in obstacles:
+                                print(
+                                    "added", o
+                                )
+                                obstacles.append(o)
+                            p.assign()
+                        
+                        conf1.assign()
+            else:
+                obstacles = fixed + assign_fluent_state(fluents)
             conf1.assign()
-            obstacles = fixed + assign_fluent_state(fluents)
             path = plan_joint_motion(
                 robot,
                 conf2.joints,
                 conf2.configuration,
                 obstacles=obstacles,
                 self_collisions=self_collisions,
+                return_collide=return_collide,
+                max_time=max_time
             )
-            if path is None:
-                return None
+            if return_collide:
+                if isinstance(path, tuple):
+                    return path
+            else:
+                if path is None:
+                    return None
+            # input("path not none")
         command = Command([BodyPath(robot, path, joints=conf2.joints)])
         return (command,)
 
     return fn
 
 
-def get_holding_motion_gen(robot, fixed=[], teleport=False, self_collisions=True):
-    def fn(conf1, conf2, body, grasp, fluents=[]):
+def get_holding_motion_gen(robot, fixed=[], teleport=False, self_collisions=True, only_col_collisions=False, max_time=INF):
+    def fn(conf1, conf2, body, grasp, fluents=[], return_collide=False, holding=True):
         assert (conf1.body == conf2.body) and (conf1.joints == conf2.joints)
         if teleport:
             path = [conf1.configuration, conf2.configuration]
         else:
+            if only_col_collisions:
+                obstacles = fixed[:]
+                # Find the fluents that aren't 
+                for fluent in fluents:
+                    name, args = fluent[0], fluent[1:]
+                    if name == "atpose":
+                        o, p = args
+                        # use the conf
+                        conf2.assign()
+                        our_target_col_x = get_link_pose(0, get_tool_link(robot))[0][0]
+                        col_x = p.pose[0][0]
+                        # print("obstacle", col_x, p.pose[0][1])
+                        # print("target", our_target_col_x, get_link_pose(0, get_tool_link(robot))[0][1])
+                        # input()
+                        if abs(col_x - our_target_col_x) <= 0.001:
+                            if o not in obstacles and o != body:
+                                print("adding", o, body)
+                                obstacles.append(o)
+                            p.assign()
+
+                        conf1.assign()
+            else:
+                obstacles = fixed + assign_fluent_state(fluents)
             conf1.assign()
-            obstacles = fixed + assign_fluent_state(fluents)
             path = plan_joint_motion(
                 robot,
                 conf2.joints,
@@ -453,14 +508,25 @@ def get_holding_motion_gen(robot, fixed=[], teleport=False, self_collisions=True
                 obstacles=obstacles,
                 attachments=[grasp.attachment()],
                 self_collisions=self_collisions,
+                return_collide=return_collide,
+                max_time=max_time
             )
-            if path is None:
-                if DEBUG_FAILURE:
-                    wait_if_gui(f"Holding motion failed {fixed}")
-                return None
-        command = Command(
-            [BodyPath(robot, path, joints=conf2.joints, attachments=[grasp])]
-        )
+            if return_collide:
+                if isinstance(path, tuple):
+                    return path
+            else:
+                if path is None:
+                    if DEBUG_FAILURE:
+                        wait_if_gui(f"Holding motion failed {fixed}")
+                    return None
+        if holding:
+            command = Command(
+                [BodyPath(robot, path, joints=conf2.joints, attachments=[grasp])]
+            )
+        else:
+            command = Command(
+                [BodyPath(robot, path, joints=conf2.joints, attachments=[])]
+            )
         return (command,)
 
     return fn

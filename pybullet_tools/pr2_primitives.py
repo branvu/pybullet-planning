@@ -99,7 +99,7 @@ from .utils import (
 BASE_EXTENT = 3.5  # 2.5
 BASE_LIMITS = (-BASE_EXTENT * np.ones(2), BASE_EXTENT * np.ones(2))
 GRASP_LENGTH = 0.03
-APPROACH_DISTANCE = 0.1 + GRASP_LENGTH  # 0.1 0.14
+APPROACH_DISTANCE = 0.3 + GRASP_LENGTH  # 0.1 0.14
 SELF_COLLISIONS = False
 
 ##################################################
